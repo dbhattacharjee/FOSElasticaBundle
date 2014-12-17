@@ -16,6 +16,7 @@
         <service id="fos_elastica.client_prototype" class="%fos_elastica.client.class%" abstract="true">
             <argument type="collection" /> <!-- configuration -->
             <argument /> <!-- callback -->
+            <argument type="service" id="service_container" />
 
             <call method="setStopwatch">
                 <argument type="service" id="debug.stopwatch" on-invalid="null" />
@@ -49,3 +50,4 @@
         <service id="fos_elastica.property_accessor" class="%fos_elastica.property_accessor.class%" />
     </services>
 </container>
+

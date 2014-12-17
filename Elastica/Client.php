@@ -28,24 +28,59 @@ class Client extends BaseClient
      * @var Stopwatch|null
      */
     private $stopwatch;
+    
+     /**
+     *
+     * @object Request
+     */
+    private $request;
+    
+    /**
+     * Creates a new Elastica client
+     *
+     * @param array    $config   OPTIONAL Additional config options
+     * @param callback $callback OPTIONAL Callback function which can be used to be notified about errors (for example connection down)
+     * @param object   $containerObj  Request object
+     */
+    public function __construct(array $config = array(), $callback = null, $containerObj = null)
+    {
+        parent::__construct($config, $callback);
+        try {
+            $this->request = $containerObj->get('request');
+        } catch (\Exception $e) {
+            //fail silently as this would not work during cache clear
+        }
+    }
 
     /**
-     * @param string $path
-     * @param string $method
-     * @param array $data
-     * @param array $query
-     * @return \Elastica\Response
+     * {@inheritdoc}
      */
     public function request($path, $method = Request::GET, $data = array(), array $query = array())
     {
         if ($this->stopwatch) {
             $this->stopwatch->start('es_request', 'fos_elastica');
         }
-
+        //Hack : Replace index name with current subdomain
+        if ($this->request->getSession()->get('_current_subdomain', false) && is_string($data)) {
+            $data = str_replace('replaceable_index_name', $this->request->getSession()->get('_current_subdomain'), $data);
+        }
         $start = microtime(true);
         $response = parent::request($path, $method, $data, $query);
 
-        $this->logQuery($path, $method, $data, $query, $start);
+        if ($this->_logger and $this->_logger instanceof ElasticaLogger) {
+            $time = microtime(true) - $start;
+
+            $connection = $this->getLastRequest()->getConnection();
+
+            $connection_array = array(
+                'host'      => $connection->getHost(),
+                'port'      => $connection->getPort(),
+                'transport' => $connection->getTransport(),
+                'headers'   => $connection->hasConfig('headers') ? $connection->getConfig('headers') : array(),
+            );
+
+            $this->_logger->logQuery($path, $method, $data, $time, $connection_array, $query);
+        }
 
         if ($this->stopwatch) {
             $this->stopwatch->stop('es_request');
@@ -71,33 +106,5 @@ class Client extends BaseClient
     public function setStopwatch(Stopwatch $stopwatch = null)
     {
         $this->stopwatch = $stopwatch;
-    }
-
-    /**
-     * Log the query if we have an instance of ElasticaLogger.
-     *
-     * @param string $path
-     * @param string $method
-     * @param array $data
-     * @param array $query
-     * @param int $start
-     */
-    private function logQuery($path, $method, $data, array $query, $start)
-    {
-        if (!$this->_logger or !$this->_logger instanceof ElasticaLogger) {
-            return;
-        }
-
-        $time = microtime(true) - $start;
-        $connection = $this->getLastRequest()->getConnection();
-
-        $connection_array = array(
-            'host' => $connection->getHost(),
-            'port' => $connection->getPort(),
-            'transport' => $connection->getTransport(),
-            'headers' => $connection->hasConfig('headers') ? $connection->getConfig('headers') : array(),
-        );
-
-        $this->_logger->logQuery($path, $method, $data, $time, $connection_array, $query);
     }
 }
