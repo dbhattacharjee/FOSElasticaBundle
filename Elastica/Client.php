@@ -61,8 +61,13 @@ class Client extends BaseClient
             $this->stopwatch->start('es_request', 'fos_elastica');
         }
         //Hack : Replace index name with current subdomain
-        if ($this->request->getSession()->get('_current_subdomain', false) && is_string($data)) {
-            $data = str_replace('replaceable_index_name', $this->request->getSession()->get('_current_subdomain'), $data);
+        if ($this->request->getSession()->get('_current_subdomain', false)) {
+           if (is_string($data)) {
+             $data = str_replace('@@!--$$@replaceable_index_name$$--!@@', $this->request->getSession()->get('_current_subdomain'), $data);
+           }
+           if ($method == Request::GET) {
+              $path =  str_replace('@@!--$$@replaceable_index_name$$--!@@', $this->request->getSession()->get('_current_subdomain'), $path);
+           }
         }
         $start = microtime(true);
         $response = parent::request($path, $method, $data, $query);
